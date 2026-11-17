@@ -28,12 +28,14 @@ Flutter. Never use a Supabase service-role key in the app.
 
 The backend reads private settings from `backend/.env` or the Codespaces
 environment. For a local setup, copy `backend/.env.example` to `backend/.env`
-and fill in the Supabase database/auth settings. Add `OPENAI_API_KEY` from your
-OpenAI account there to enable chat. In Codespaces, add these values under
+and fill in the Supabase database/auth settings. Chat uses Cloudflare Workers AI
+by default. Create a Workers AI API token and copy your Cloudflare account ID
+from the Workers AI dashboard. In Codespaces, add these values under
 **Repository → Settings → Secrets and variables → Codespaces**, then restart
-the backend terminal:
+the Codespace:
 
-- `OPENAI_API_KEY` (required for live AI replies)
+- `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (server-only chat provider)
+- `AI_PROVIDER=cloudflare` (default; `openai` is an optional paid alternative)
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `DATABASE_URL`, and `DIRECT_URL`
 - `SUPABASE_SERVICE_ROLE_KEY` (backend only, required for account deletion)
 - `PIN_PEPPER` (a private random value of at least 32 characters)
@@ -44,7 +46,50 @@ the backend terminal:
 
 Never paste keys into chat, commit them, or add them to Flutter build options.
 Keep a secure backup of `MEMORY_KEK`; losing it makes encrypted conversation
-data unreadable. The AI provider is called only by the backend.
+data unreadable. The AI provider is called only by the backend. Cloudflare
+Workers Free includes 10,000 Neurons per day; requests fail after that quota
+until it resets. Keep the account on the Workers Free plan and do not upgrade
+or enable paid usage if you want to avoid charges. The selected
+`@cf/openai/gpt-oss-20b` model is Cloudflare-hosted and marked zero-data-retention
+in the [Cloudflare model catalog](https://developers.cloudflare.com/workers-ai/models/gpt-oss-20b/).
+
+## Deploy the backend to Render
+
+The repository includes a Render Blueprint at [`render.yaml`](../render.yaml).
+In Render, choose **New → Blueprint**, connect this GitHub repository, and
+select the branch to deploy. The blueprint creates a free Node.js web service,
+builds the Prisma client and backend, and checks `/health`. Render supplies
+the public HTTPS service URL and the `PORT` value; do not set `PORT` manually.
+
+After the first deploy, add the backend secrets in the Render service's
+**Environment** settings, then redeploy:
+
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `DATABASE_URL`, and `DIRECT_URL`
+- `PIN_PEPPER` (a private random value of at least 32 characters)
+- `MEMORY_KEK` (a base64-encoded random 32-byte key; keep a secure backup)
+- `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` for chat
+- `SUPABASE_SERVICE_ROLE_KEY` for account deletion
+
+Use the Supabase pooler URL for `DATABASE_URL` and direct connection URL for
+`DIRECT_URL`. Keep all of these values in Render's environment settings, never
+in the repository or Flutter build options. Set `CORS_ORIGIN` to the exact
+HTTPS origin of the deployed web app when available; the initial blueprint
+allows any origin so web testing works before a domain is chosen. Native
+Android/iOS clients do not use browser CORS.
+
+The blueprint deliberately does not run database migrations or the RLS SQL
+automatically. Follow [Set up the database and backend](#set-up-the-database-and-backend)
+to verify the existing schema, apply migrations only when appropriate, and
+install the required RLS policies before connecting real accounts. Configure
+Google OAuth afterward with
+`GOOGLE_OAUTH_REDIRECT_URI=https://YOUR_RENDER_HOST/api/integrations/google/callback`
+and `NOVA_APP_ORIGIN` set to the app's HTTPS origin.
+
+The free Render service can spin down when idle, so it is suitable for the
+first deployment and API connectivity checks, not unattended routine
+scheduling. Keep the backend on an always-on plan before relying on scheduled
+routines; do not enable paid hosting without choosing a plan and reviewing its
+price.
 
 ## Preview the Flutter app in Codespaces
 
@@ -211,8 +256,10 @@ and is held only in app memory.
 Conversation content is encrypted with AES-256-GCM using a random key per
 profile; that key is wrapped by the backend-only `MEMORY_KEK`. The backend
 decrypts only to form the prompt sent to the configured AI provider. A live
-chat check requires `OPENAI_API_KEY`, a valid Supabase account, the database
-schema/RLS setup, and a configured PIN.
+chat check requires provider credentials, a valid Supabase account, the
+database schema/RLS setup, and a configured PIN. `AI_PROVIDER` defaults to
+`cloudflare`; set it to `openai` only if you have chosen to use the paid OpenAI
+API and have configured its key.
 
 ## Approved memories
 

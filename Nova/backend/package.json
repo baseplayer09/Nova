@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/src/index.js",
-    "test": "npm run build && node --test dist/src/server.test.js dist/src/database.test.js dist/src/pin.test.js dist/src/encryption.test.js dist/src/chat-service.test.js dist/src/memory-service.test.js dist/src/gmail-service.test.js dist/src/home-assistant-service.test.js dist/src/routine-service.test.js",
+    "test": "npm run build && node --test dist/src/server.test.js dist/src/database.test.js dist/src/pin.test.js dist/src/encryption.test.js dist/src/chat-service.test.js dist/src/ai/cloudflare-workers-ai-provider.test.js dist/src/memory-service.test.js dist/src/gmail-service.test.js dist/src/home-assistant-service.test.js dist/src/routine-service.test.js",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:migrate": "prisma migrate deploy"
