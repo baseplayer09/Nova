@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Profile {
+  id          String   @id @db.Uuid
+  displayName String?  @map("display_name")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  encryptionKey     ProfileEncryptionKey?
+  conversations     Conversation[]
+  pinCredential     PinCredential?
+  memories          Memory[]
+  messages          Message[]
+  connectedAccounts ConnectedAccount[]
+  routines          Routine[]
+  routineRuns       RoutineRun[]
+
+  @@map("profiles")
+}
+
+model ProfileEncryptionKey {
+  profileId      String   @id @map("profile_id") @db.Uuid
+  wrappedDataKey Bytes    @map("wrapped_data_key")
+  wrapNonce      Bytes    @map("wrap_nonce")
+  wrapAuthTag    Bytes    @map("wrap_auth_tag")
+  kekVersion     String   @map("kek_version")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("profile_encryption_keys")
+}
+
+model Conversation {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId String   @map("profile_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  profile  Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([id, profileId], map: "conversations_id_profile_id_key")
+  @@index([profileId, createdAt(sort: Desc)], map: "conversations_profile_created_at_idx")
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId      String   @map("profile_id") @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  sender         String
+  ciphertext     Bytes
+  nonce          Bytes
+  authTag        Bytes    @map("auth_tag")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  profile      Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId, profileId], references: [id, profileId], onDelete: Cascade)
+
+  @@index([profileId, conversationId, createdAt], map: "messages_profile_conversation_created_at_idx")
+  @@map("messages")
+}
+
+model PinCredential {
+  profileId      String    @id @map("profile_id") @db.Uuid
+  pinHash        String    @map("pin_hash")
+  failedAttempts Int       @default(0) @map("failed_attempts") @db.SmallInt
+  lockedUntil    DateTime? @map("locked_until") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("pin_credentials")
+}
+
+model Memory {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId  String    @map("profile_id") @db.Uuid
+  category   String
+  status     String    @default("pending")
+  ciphertext Bytes
+  nonce      Bytes
+  authTag    Bytes     @map("auth_tag")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  approvedAt DateTime? @map("approved_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, status, createdAt(sort: Desc)], map: "memories_profile_status_created_at_idx")
+  @@map("memories")
+}
+
+model ConnectedAccount {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId             String   @map("profile_id") @db.Uuid
+  provider              String
+  encryptedRefreshToken Bytes    @map("encrypted_refresh_token")
+  tokenNonce            Bytes    @map("token_nonce")
+  tokenAuthTag          Bytes    @map("token_auth_tag")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, provider], map: "connected_accounts_profile_provider_key")
+  @@map("connected_accounts")
+}
+
+model Routine {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId        String    @map("profile_id") @db.Uuid
+  title            String
+  promptCiphertext Bytes     @map("prompt_ciphertext")
+  promptNonce      Bytes     @map("prompt_nonce")
+  promptAuthTag    Bytes     @map("prompt_auth_tag")
+  timezone         String
+  localTime        String    @map("local_time")
+  scheduleDays     Int[]     @map("schedule_days")
+  nextRunAt        DateTime? @map("next_run_at") @db.Timestamptz(6)
+  enabled          Boolean   @default(true)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  profile Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  runs    RoutineRun[]
+
+  @@unique([id, profileId], map: "routines_id_profile_id_key")
+  @@index([enabled, nextRunAt], map: "routines_enabled_next_run_at_idx")
+  @@index([profileId, createdAt(sort: Desc)], map: "routines_profile_created_at_idx")
+  @@map("routines")
+}
+
+model RoutineRun {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId    String    @map("profile_id") @db.Uuid
+  routineId    String    @map("routine_id") @db.Uuid
+  scheduledFor DateTime  @map("scheduled_for") @db.Timestamptz(6)
+  status       String    @default("pending")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  startedAt    DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  routine Routine @relation(fields: [routineId, profileId], references: [id, profileId], onDelete: Cascade)
+
+  @@unique([routineId, scheduledFor], map: "routine_runs_routine_scheduled_for_key")
+  @@index([profileId, status, scheduledFor(sort: Desc)], map: "routine_runs_profile_status_scheduled_idx")
+  @@map("routine_runs")
+}

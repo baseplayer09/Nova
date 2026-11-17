@@ -1,0 +1,31 @@
+{
+  "name": "nova-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/src/index.js",
+    "test": "npm run build && node --test dist/src/server.test.js dist/src/database.test.js dist/src/pin.test.js dist/src/encryption.test.js dist/src/chat-service.test.js dist/src/memory-service.test.js dist/src/gmail-service.test.js dist/src/home-assistant-service.test.js dist/src/routine-service.test.js",
+    "db:generate": "prisma generate",
+    "db:validate": "prisma validate",
+    "db:migrate": "prisma migrate deploy"
+  },
+  "engines": {
+    "node": "^20.19.0 || ^22.12.0 || >=24.0.0"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
+    "@supabase/supabase-js": "^2.52.0",
+    "argon2": "^0.45.2",
+    "openai": "^7.57.0",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "dotenv": "^16.6.1",
+    "prisma": "^7.10.1",
+    "typescript": "^5.8.3"
+  }
+}

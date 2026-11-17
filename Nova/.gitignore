@@ -1,0 +1,37 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+secrets/
+.secrets/
+*.secret
+*.secrets
+*.pem
+*.key
+
+# Local database files (database choice is intentionally undecided)
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
+
+# Node.js / TypeScript generated files
+node_modules/
+dist/
+coverage/
+npm-debug.log*
+/backend/generated/
+
+# Flutter / Dart generated files
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/
