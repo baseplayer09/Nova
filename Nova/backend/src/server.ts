@@ -13,7 +13,6 @@ import {
   type PinVerificationResult,
 } from './pin.js';
 import { ChatService, ChatServiceError } from './chat-service.js';
-import { CloudflareWorkersAiError } from './ai/cloudflare-workers-ai-provider.js';
 import { MemoryService, MemoryServiceError } from './memory-service.js';
 import {
   GmailService,
@@ -30,6 +29,7 @@ type AuthOptions = {
   supabaseUrl?: string;
   supabaseAnonKey?: string;
   fetch?: typeof globalThis.fetch;
+  routinesEnabled?: boolean;
   accountDeleter?: (
     userId: string,
     email: string,
@@ -145,6 +145,7 @@ async function readJsonBody(
 
 export function createApp(options: AuthOptions = {}) {
   const fetchSupabase = options.fetch ?? globalThis.fetch;
+  const routinesEnabled = options.routinesEnabled ?? true;
   const pinService = options.pinService ?? new PinService();
   const chatService = options.chatService ?? new ChatService();
   const memoryService = options.memoryService ?? new MemoryService();
@@ -168,12 +169,15 @@ export function createApp(options: AuthOptions = {}) {
       return;
     }
 
-    if (request.method === 'GET' && request.url === '/health') {
+    const url = new URL(request.url ?? '/', 'http://localhost');
+    if (
+      request.method === 'GET' &&
+      (url.pathname === '/health' || url.pathname === '/api/health')
+    ) {
       sendJson(response, 200, { status: 'ok' }, headers);
       return;
     }
 
-    const url = new URL(request.url ?? '/', 'http://localhost');
     const isSessionRequest = request.method === 'GET' && url.pathname === '/api/auth/session';
     const isProfileRequest = request.method === 'GET' && url.pathname === '/api/profile';
     const isStatusRequest = request.method === 'GET' && url.pathname === '/api/auth/status';
@@ -1058,6 +1062,24 @@ export function createApp(options: AuthOptions = {}) {
       return;
     }
 
+    if (
+      !routinesEnabled &&
+      (isRoutineList ||
+        isRoutineCreate ||
+        isRoutineRuns ||
+        isRoutineEnabled ||
+        isRoutineDelete ||
+        isRoutineRun)
+    ) {
+      sendJson(
+        response,
+        503,
+        { error: 'Unattended routines are temporarily unavailable on this hosting plan.' },
+        userDataHeaders,
+      );
+      return;
+    }
+
     if (isRoutineList) {
       try {
         sendJson(
@@ -1347,8 +1369,6 @@ function sendChatError(
   if (
     error instanceof Error &&
     (error.message === 'OPENAI_API_KEY is not configured.' ||
-      error.message === 'CLOUDFLARE_ACCOUNT_ID is not configured.' ||
-      error.message === 'CLOUDFLARE_API_TOKEN is not configured.' ||
       error.message === 'MEMORY_KEK is not configured.' ||
       error.message === 'MEMORY_KEK must be a base64-encoded 32-byte key.')
   ) {
@@ -1367,13 +1387,6 @@ function sendChatError(
                 code: error.code,
                 type: error.type,
                 requestId: error.requestID,
-              }
-            : {}),
-          ...(error instanceof CloudflareWorkersAiError
-            ? {
-                status: error.status,
-                codes: error.codes,
-                requestId: error.requestId,
               }
             : {}),
         }

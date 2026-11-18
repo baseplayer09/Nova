@@ -3,7 +3,6 @@ import type { Prisma } from '../generated/prisma/client.js';
 import { getDatabaseClient, withUserDatabaseContext } from './database.js';
 import { decryptText, encryptText } from './encryption.js';
 import { getProfileDataKey } from './profile-key.js';
-import { CloudflareWorkersAiProvider } from './ai/cloudflare-workers-ai-provider.js';
 import type { AiProvider } from './ai/ai-provider.js';
 import { OpenAiProvider } from './ai/openai-provider.js';
 
@@ -12,18 +11,6 @@ const maxHistoryMessages = 40;
 const maxPromptLength = 20_000;
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function defaultAiProvider(): AiProvider {
-  const provider = process.env.AI_PROVIDER?.trim().toLowerCase() || 'cloudflare';
-  switch (provider) {
-    case 'cloudflare':
-      return new CloudflareWorkersAiProvider();
-    case 'openai':
-      return new OpenAiProvider();
-    default:
-      throw new Error('AI_PROVIDER must be "cloudflare" or "openai".');
-  }
-}
 
 export type ChatTurn = {
   role: 'user' | 'assistant';
@@ -96,7 +83,7 @@ function memorySafeText(value: unknown): string {
 
 export class ChatService {
   constructor(
-    private readonly aiProvider: AiProvider = defaultAiProvider(),
+    private readonly aiProvider: AiProvider = new OpenAiProvider(),
   ) {}
 
   async sendMessage(

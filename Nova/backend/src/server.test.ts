@@ -1052,7 +1052,7 @@ test('routine endpoints require a PIN grant and explicit approval to run a task'
     enabled: true,
     createdAt: new Date('2025-01-01T00:00:00Z'),
   };
-  const server = createApp({
+  const appOptions: Parameters<typeof createApp>[0] = {
     supabaseUrl: 'https://nova.supabase.co',
     supabaseAnonKey: 'test-anon-key',
     fetch: async () => Response.json({ id: userId }),
@@ -1091,7 +1091,8 @@ test('routine endpoints require a PIN grant and explicit approval to run a task'
         };
       },
     },
-  });
+  };
+  const server = createApp(appOptions);
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const address = server.address();
@@ -1165,6 +1166,29 @@ test('routine endpoints require a PIN grant and explicit approval to run a task'
       `create:${userId}:Morning briefing`,
       `run:${userId}:123e4567-e89b-42d3-a456-426614174000:true`,
     ]);
+
+    const vercelServer = createApp({
+      ...appOptions,
+      routinesEnabled: false,
+    });
+    vercelServer.listen(0, '127.0.0.1');
+    await once(vercelServer, 'listening');
+    const vercelAddress = vercelServer.address();
+    assert.ok(vercelAddress && typeof vercelAddress !== 'string');
+
+    try {
+      const unavailable = await fetch(
+        `http://127.0.0.1:${vercelAddress.port}/api/routines`,
+        { headers },
+      );
+      assert.equal(unavailable.status, 503);
+      assert.deepEqual(await unavailable.json(), {
+        error: 'Unattended routines are temporarily unavailable on this hosting plan.',
+      });
+    } finally {
+      vercelServer.close();
+      await once(vercelServer, 'close');
+    }
   } finally {
     server.close();
     await once(server, 'close');
